@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de Redações Nota 1000 do ENEM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: Dashboard SPA with Dark Mode and Highlighting. 1) Header with Theme Toggle. 2) Analytics section (Charts). 3) Filtering section (Search, Filters). 4) Essay grid with favorites. 5) Focused reading view with a floating highlighter palette for selecting and saving colored highlights. 6) Password-protected CRUD moderator panel. 7) Data persistence via localStorage for essays, categories, favorites, theme, and text highlights. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Essay distribution by year/category. -> Goal: Compare/Inform. -> Viz/Method: Bar/Doughnut Charts. -> Interaction: Hover. -> Library: Chart.js (Canvas). (Dark mode compatible)
+        - Report Info: Essay collection. -> Goal: Organize/Explore/Search. -> Viz/Method: Card Grid + Full-text Search + Filters. -> Interaction: Type, click, favorite. -> Library: Vanilla JS.
+        - Report Info: Full essay text. -> Goal: Inform/Read/Annotate. -> Viz/Method: Dedicated reading view. -> Interaction: Select text to show palette, click palette to apply/remove highlights. -> Library: Vanilla JS (DOM Manipulation + Selection API).
+        - Report Info: Content Management. -> Goal: CRUD. -> Viz/Method: Password-protected forms/lists. -> Interaction: Forms and buttons. -> Library: Vanilla JS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #fdfbf7;
+            color: #44403c;
+        }
+        .dark body {
+            background-color: #1c1917; /* stone-900 */
+            color: #d6d3d1; /* stone-300 */
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .favorite-btn {
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .favorite-btn.favorited {
+            color: #f59e0b; /* amber-500 */
+        }
+        .favorite-btn:not(.favorited) {
+            color: #d6d3d1; /* stone-300 */
+        }
+        .dark .favorite-btn:not(.favorited) {
+            color: #57534e; /* stone-600 */
+        }
+        
+        /* Estilos do Destaque */
+        mark {
+            padding: 0.1em 0.15em;
+            border-radius: 0.2em;
+            color: #1c1917; /* Texto escuro para legibilidade */
+        }
+        .highlight-yellow { background-color: #fef08a; } /* yellow-200 */
+        .highlight-pink   { background-color: #fbcfe8; } /* pink-200 */
+        .highlight-blue   { background-color: #bfdbfe; } /* blue-200 */
+        .highlight-green  { background-color: #bbf7d0; } /* green-200 */
+        
+        .dark mark {
+             color: #1c1917; /* Mantém texto escuro para contraste */
+        }
+
+        #highlighter-palette {
+            position: absolute;
+            z-index: 100;
+            transform: translateY(-110%);
+            transition: opacity 0.1s ease-in-out;
+        }
+        #highlighter-palette button {
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+        }
+        
+        .dark .chartjs-legend-text, .dark .chartjs-tooltip-text {
+            color: #e5e7eb !important;
+        }
+        .dark .chartjs-scale-label-text {
+             color: #d1d5db !important;
+        }
+        .dark .chartjs-chart-title-text {
+            color: #f3f4f6 !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <header class="bg-white dark:bg-stone-800 shadow-sm sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <div class="flex-1 min-w-0">
+                <h1 class="text-xl sm:text-3xl font-bold leading-tight text-stone-800 dark:text-stone-100 text-center sm:text-left truncate">Análise de Redações Nota 1000</h1>
+                <p class="text-center sm:text-left text-stone-500 dark:text-stone-400 mt-1 text-sm sm:text-base hidden sm:block">Explore, pesquise e salve exemplos de redações que alcançaram a nota máxima.</p>
+            </div>
+            <button id="theme-toggle-btn" class="flex-shrink-0 ml-4 p-2 rounded-full text-2xl text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-500" title="Alterar tema">
+                &#9737; <!-- Ícone de "Sistema" -->
+            </button>
+        </div>
+    </header>
+
+    <main class="py-10 flex-grow">
+        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+
+            <section id="dashboard" class="mb-12 bg-white dark:bg-stone-800 p-6 rounded-lg shadow-md">
+                 <div class="intro-text mb-8">
+                    <h2 class="text-2xl font-bold text-stone-700 dark:text-stone-200 mb-3 text-center">Visão Geral e Análises</h2>
+                    <p class="text-stone-600 dark:text-stone-400 text-center max-w-3xl mx-auto">
+                        Analise a distribuição das redações por ano e por seção. Use os filtros abaixo para explorar a galeria.
+                    </p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div>
+                        <h3 class="text-lg font-semibold text-center text-stone-600 dark:text-stone-300 mb-4">Redações por Ano</h3>
+                         <div class="chart-container">
+                            <canvas id="essaysByYearChart"></canvas>
+                        </div>
+                    </div>
+                     <div>
+                        <h3 class="text-lg font-semibold text-center text-stone-600 dark:text-stone-300 mb-4">Redações por Seção</h3>
+                         <div class="chart-container">
+                            <canvas id="essaysByCategoryChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <section id="filter-section" class="mb-12 bg-white dark:bg-stone-800 p-6 rounded-lg shadow-md">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div class="lg:col-span-2">
+                        <label for="search-input" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Buscar (no tema ou texto)</label>
+                        <input type="search" id="search-input" placeholder="Buscar por 'Hannah Arendt'..." class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 dark:placeholder-stone-400 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    </div>
+                    <div>
+                        <label for="year-filter" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Ano</label>
+                        <select id="year-filter" class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                            <option value="all">Todos os Anos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="category-filter" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Seção</label>
+                        <select id="category-filter" class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                            <option value="all">Todas as Seções</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="sort-select" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Ordenar por</label>
+                        <select id="sort-select" class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                            <option value="year-desc">Ano (Mais Recente)</option>
+                            <option value="year-asc">Ano (Mais Antigo)</option>
+                            <option value="theme-asc">Tema (A-Z)</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Botão para plataforma externa adicionado abaixo da grade de filtros -->
+                <div class="mt-6 text-center">
+                    <a href="https://script-storage.lovable.app" target="_blank" rel="noopener noreferrer" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-semibold text-sm rounded-md shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                        Acessar Plataforma de Scripts
+                        <span class="ml-2">&#128279;</span> <!-- Link symbol -->
+                    </a>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <div class="flex items-center">
+                        <input id="favorites-toggle" type="checkbox" class="h-4 w-4 rounded border-stone-300 dark:border-stone-600 text-amber-600 focus:ring-amber-500">
+                        <label for="favorites-toggle" class="ml-2 block text-sm font-medium text-stone-700 dark:text-stone-300">Mostrar apenas favoritos (⭐)</label>
+                    </div>
+                </div>
+            </section>
+
+            <section id="essays-gallery">
+                 <div class="intro-text mb-8">
+                    <h2 class="text-2xl font-bold text-stone-700 dark:text-stone-200 mb-3 text-center">Galeria de Redações</h2>
+                    <p id="essays-count" class="text-stone-600 dark:text-stone-400 text-center max-w-3xl mx-auto">
+                        Carregando redações...
+                    </p>
+                </div>
+                <div id="essays-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
+            </section>
+            
+            <section id="reading-view" class="hidden relative">
+                <button id="back-to-gallery-btn" class="mb-6 bg-amber-500 text-white font-bold py-2 px-4 rounded-md hover:bg-amber-600 transition-colors duration-300 flex items-center space-x-2">
+                    <span>&larr; Voltar para a Galeria</span>
+                </button>
+                <div class="bg-white dark:bg-stone-800 p-6 sm:p-8 rounded-lg shadow-md">
+                    <h2 id="reading-title" class="text-2xl sm:text-3xl font-bold text-stone-800 dark:text-stone-100"></h2>
+                    <p id="reading-year" class="text-sm text-stone-500 dark:text-stone-400 mt-2 mb-6"></p>
+                    <div id="reading-text" class="text-stone-700 dark:text-stone-300 whitespace-pre-wrap leading-relaxed space-y-4 text-lg"></div>
+                </div>
+            </section>
+            
+            <section id="moderator-login" class="hidden mt-12 bg-white dark:bg-stone-800 p-6 rounded-lg shadow-md max-w-md mx-auto">
+                <h2 class="text-2xl font-bold text-stone-700 dark:text-stone-200 mb-4 text-center">Acesso do Moderador</h2>
+                <form id="moderator-login-form">
+                    <label for="moderator-pass" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Senha</label>
+                    <input type="password" id="moderator-pass" required class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                    <button type="submit" class="mt-4 w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700 transition-colors duration-300">Entrar</button>
+                    <p id="login-error" class="text-red-600 text-sm mt-2 text-center hidden">Senha incorreta.</p>
+                </form>
+            </section>
+
+            <section id="moderator-panel" class="hidden mt-12 bg-stone-100 dark:bg-stone-950 p-6 rounded-lg shadow-inner">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-stone-700 dark:text-stone-200">Módulo do Moderador</h2>
+                    <button id="logout-btn" class="text-sm text-blue-600 hover:underline">Sair</button>
+                </div>
+
+                <!-- Add/Edit Essay Form -->
+                <div class="bg-white dark:bg-stone-800 p-6 rounded-lg shadow-md mb-8">
+                    <h3 id="essay-form-title" class="text-xl font-semibold mb-4 text-stone-700 dark:text-stone-200">Adicionar Nova Redação</h3>
+                    <form id="add-essay-form" class="space-y-4">
+                        <input type="hidden" id="editing-essay-id">
+                        <div>
+                            <label for="new-essay-year" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Ano</label>
+                            <input type="number" id="new-essay-year" required class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500" placeholder="Ex: 2023">
+                        </div>
+                        <div>
+                            <label for="new-essay-theme" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Tema</label>
+                            <input type="text" id="new-essay-theme" required class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                        </div>
+                        <div>
+                            <label for="new-essay-category" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Seção</label>
+                            <select id="new-essay-category" required class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500"></select>
+                        </div>
+                        <div>
+                            <label for="new-essay-text" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Texto da Redação</label>
+                            <textarea id="new-essay-text" rows="6" required class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500"></textarea>
+                        </div>
+                        <div class="flex space-x-4">
+                            <button type="submit" id="save-essay-btn" class="w-full bg-green-600 text-white font-bold py-2 px-4 rounded-md hover:bg-green-700 transition-colors duration-300">Adicionar Redação</button>
+                            <button type="button" id="cancel-edit-btn" class="w-full bg-gray-500 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-600 transition-colors duration-300 hidden">Cancelar Edição</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Manage Categories -->
+                    <div class="bg-white dark:bg-stone-800 p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4 text-stone-700 dark:text-stone-200">Gerenciar Seções</h3>
+                        <form id="add-category-form" class="flex space-x-2 mb-4">
+                            <input type="text" id="new-category-name" placeholder="Nova seção" required class="block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                            <button type="submit" class="bg-blue-600 text-white font-bold py-2 px-3 rounded-md hover:bg-blue-700 transition-colors duration-300">Criar</button>
+                        </form>
+                        <div id="manage-categories-list" class="space-y-2 max-h-48 overflow-y-auto"></div>
+                    </div>
+
+                    <!-- Manage Password -->
+                    <div class="bg-white dark:bg-stone-800 p-6 rounded-lg shadow-md">
+                        <h3 class="text-xl font-semibold mb-4 text-stone-700 dark:text-stone-200">Alterar Senha</h3>
+                        <form id="change-password-form" class="space-y-4">
+                            <div>
+                                <label for="current-password" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Senha Atual</label>
+                                <input type="password" id="current-password" required class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="new-password" class="block text-sm font-medium text-stone-700 dark:text-stone-300">Nova Senha</label>
+                                <input type="password" id="new-password" required class="mt-1 block w-full rounded-md border-stone-300 dark:border-stone-600 dark:bg-stone-700 dark:text-stone-200 shadow-sm focus:border-amber-500 focus:ring-amber-500">
+                            </div>
+                            <button type="submit" class="w-full bg-yellow-600 text-white font-bold py-2 px-4 rounded-md hover:bg-yellow-700 transition-colors duration-300">Salvar Nova Senha</button>
+                            <p id="password-message" class="text-sm text-center mt-2"></p>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Manage Essays List -->
+                <div class="bg-white dark:bg-stone-800 p-6 rounded-lg shadow-md mt-8">
+                    <h3 class="text-xl font-semibold mb-4 text-stone-700 dark:text-stone-200">Gerenciar Redações</h3>
+                    <div id="manage-essays-list" class="space-y-3 max-h-96 overflow-y-auto"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="bg-white dark:bg-stone-800 mt-12 py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-6">
+            <a href="https://script-storage.lovable.app" target="_blank" rel="noopener noreferrer" class="text-sm text-blue-600 hover:underline">
+                Acessar Plataforma de Scripts
+            </a>
+            <button id="moderator-mode-btn" class="text-sm text-stone-500 dark:text-stone-400 hover:text-stone-800 dark:hover:text-stone-200">
+                Acessar Modo Moderador
+            </button>
+        </div>
+    </footer>
+    
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white dark:bg-stone-800 rounded-lg shadow-xl p-6 max-w-sm w-full">
+            <h3 class="text-lg font-bold mb-4 text-stone-800 dark:text-stone-100" id="modal-title-text">Confirmar Exclusão</h3>
+            <p id="modal-body-text" class="text-stone-600 dark:text-stone-300 mb-6">Você tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.</p>
+            <div class="flex justify-end space-x-4">
+                <button id="cancel-delete-btn" class="bg-gray-500 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-600">Cancelar</button>
+                <button id="confirm-delete-btn" class="bg-red-600 text-white font-bold py-2 px-4 rounded-md hover:bg-red-700">Excluir</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Highlighter Palette -->
+    <div id="highlighter-palette" class="hidden absolute bg-white dark:bg-stone-700 shadow-lg rounded-md p-1 space-x-1 border border-stone-200 dark:border-stone-600">
+        <button class="highlight-btn w-6 h-6 rounded-full bg-yellow-200 border border-yellow-400" data-color="yellow" title="Amarelo"></button>
+        <button class="highlight-btn w-6 h-6 rounded-full bg-pink-200 border border-pink-400" data-color="pink" title="Rosa"></button>
+        <button class="highlight-btn w-6 h-6 rounded-full bg-blue-200 border border-blue-400" data-color="blue" title="Azul"></button>
+        <button class="highlight-btn w-6 h-6 rounded-full bg-green-200 border border-green-400" data-color="green" title="Verde"></button>
+        <button id="remove-highlight-btn" class="w-6 h-6 rounded-full text-red-500 hover:bg-stone-100 dark:hover:bg-stone-600 flex items-center justify-center" title="Remover Destaque">
+            &#128473; <!-- Ícone de "lixo" -->
+        </button>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // MODELS
+            let state = {
+                essays: [],
+                categories: [],
+                favorites: [],
+                moderatorPass: 'admin123',
+                theme: 'system',
+                highlights: {}
+            };
+            
+            let deleteCallback = null;
+            let essaysYearChart = null;
+            let essaysCategoryChart = null;
+            let currentReadingEssayId = null;
+
+            const initialData = {
+                categories: [
+                    { id: 'sociocultural', name: 'Sociocultural' },
+                    { id: 'cidadania_direitos', name: 'Cidadania e Direitos' },
+                    { id: 'tecnologia', name: 'Tecnologia' },
+                    { id: 'etica_consumo', name: 'Ética e Consumo' }
+                ],
+                essays: [
+                    { id: 1, year: 2023, category: 'sociocultural', theme: 'Desafios para o enfrentamento da invisibilidade do trabalho de cuidado realizado pela mulher no Brasil', text: 'Na célebre obra “Casa-grande & Senzala”, o sociólogo Gilberto Freyre teoriza a respeito da mulher como a grande responsável pela formação da família brasileira, por meio do papel de cuidadora do lar. Embora a análise de Freyre seja pertinente, percebe-se que, na contemporaneidade, o trabalho de cuidado, majoritariamente exercido pela figura feminina, é alvo de uma invisibilização social no Brasil, a qual é calcada não só em uma estrutura patrical, como também em uma histórica exploração do corpo da mulher.\n\nNesse contexto, é imperativo ressaltar como a manutenção de uma sociedade patriarcal e machista corrobora a desvalorização do trabalho de cuidado no país. Isso porque, em uma conjuntura na qual a mulher é vista como um ser inferior ao homem, os seus afazeres são considerados, erroneamente, como de menor importância, o que resulta em uma invisibilização de suas funções. Tal fato pode ser observado no caso das empregadas domésticas, as quais, em sua maioria, são mulheres que se dedicam ao cuidado de um lar e que, não raro, são vítimas de preconceito e de más condições de trabalho, fatores que comprovam a existência de uma subalternização da mulher no Brasil.\n\nAdemais, é fulcral pontuar que a desvalorização do trabalho de cuidado exercido pela mulher é fruto de uma exploração histórica de seu corpo. Essa situação é oriunda do Período Colonial brasileiro, no qual as mulheres escravizadas eram obrigadas a cuidar dos filhos de seus senhores, sem nenhuma remuneração, o que denota uma exploração do corpo feminino. Desse modo, a conjuntura atual não é diferente, uma vez que muitas mulheres abdicam de suas vidas para cuidar de suas famílias, sem que sejam reconhecidas por tal ação, o que evidencia a urgência de findar esse cenário.\n\nPortanto, para que o trabalho de cuidado exercido pela mulher seja devidamente valorizado, é essencial que o Poder Executivo Federal, mais especificamente o Ministério do Trabalho, crie um projeto de lei que verse sobre a remuneração de mulheres que se dedicam, exclusivamente, ao cuidado do lar. Tal ação deve ser efetivada por meio de uma renda básica mensal, a qual será responsável por garantir melhores condições de vida a esse grupo, com o fito de promover uma maior visibilidade ao trabalho de cuidado no Brasil.' },
+                    { id: 2, year: 2023, category: 'sociocultural', theme: 'Desafios para o enfrentamento da invisibilidade do trabalho de cuidado realizado pela mulher no Brasil', text: 'A Constituição Federal de 1988, documento jurídico mais importante do país, prevê, em seu artigo 6º, o direito ao trabalho como inerente a todo cidadão brasileiro. Contudo, a invisibilidade do trabalho de cuidado realizado pela mulher no Brasil impede que parte da população feminina desfrute desse direito na prática. Diante disso, a problemática persiste intrinsecamente ligada à realidade do país, seja pela herança de um patriarcalismo estrutural, seja pela falta de políticas públicas eficientes.\n\nSob esse viés, é relevante destacar que a desvalorização do trabalho de cuidado feminino é herança de um passado patriarcal. De acordo com a socióloga Heleieth Saffioti, a sociedade brasileira é marcada por uma estrutura patriarcal que relega a mulher a uma posição de subalternidade em relação ao homem. Nesse sentido, as tarefas domésticas e de cuidado foram historicamente atribuídas à figura feminina, sendo consideradas como uma obrigação natural e não como um trabalho. Essa visão, por sua vez, perpetua-se no imaginário social e contribui para a invisibilidade e a desvalorização dessas atividades, que, apesar de essenciais para a manutenção da vida e da sociedade, não são remuneradas e nem reconhecidas como trabalho.\n\nAdemais, a falta de políticas públicas eficientes agrava o problema. O Estado brasileiro, apesar de ter avançado na legislação de proteção à mulher, ainda não oferece o suporte necessário para que elas possam conciliar o trabalho de cuidado com outras atividades profissionais. A carência de creches públicas em tempo integral, por exemplo, sobrecarrega as mulheres e as impede de ingressar no mercado de trabalho formal. Sendo assim, a omissão do Estado reforça a desigualdade de gênero e a invisibilidade do trabalho de cuidado, que recai, majoritariamente, sobre as mulheres.\n\nPortanto, medidas são necessárias para resolver o impasse. Para tanto, o Ministério da Mulher, da Família e dos Direitos Humanos deve criar um Plano Nacional de Valorização do Trabalho de Cuidado, por meio da ampliação da oferta de creches públicas e da criação de programas de apoio a cuidadoras familiares. Essa medida terá como objetivo garantir que as mulheres tenham o suporte necessário para conciliar o trabalho de cuidado com outras atividades. Espera-se, com isso, que a invisibilidade do trabalho de cuidado feminino seja superada e que a igualdade de gênero seja, de fato, uma realidade no Brasil.' },
+                    { id: 3, year: 2022, category: 'cidadania_direitos', theme: 'Desafios para a valorização de comunidades e povos tradicionais no Brasil', text: 'Na mitologia grega, Sísifo foi condenado por Zeus a rolar uma enorme pedra morro acima eternamente. Todos os dias, Sísifo atingia o topo do rochedo, porém era vencido pela exaustão e a pedra retornava à base. Hodiernamente, esse mito assemelha-se à luta enfrentada pelas comunidades e povos tradicionais no Brasil, os quais buscam a sua valorização na sociedade. Nesse sentido, a fim de que a pedra de Sísifo não seja rolada eternamente, é preciso analisar não só as raízes históricas do problema, mas também o comportamento social frente à situação.\n\nEm primeiro lugar, é preciso destacar que a falta de valorização das comunidades tradicionais no país está relacionada às suas raízes históricas. Isso porque, desde o Período Colonial, com a escravidão e a catequização dos povos nativos, a cultura europeia foi imposta como superior às demais, criando-se assim, um ideal de civilização a ser seguido. Com isso, formou-se uma sociedade que inferioriza os costumes e os modos de vida que destoam desse padrão, como os dos indígenas, quilombolas, ribeirinhos, entre outros. Essa visão preconceituosa, por sua vez, reflete-se na pouca representatividade desses povos na política e na mídia, bem como na precarização de seus direitos, como o da posse da terra. Desse modo, o legado histórico de desvalorização, que ainda não foi superado, é um entrave para a construção de uma sociedade mais justa e igualitária.\n\nAlém disso, a indiferença de parte da população agrava o problema. Conforme o escritor modernista Mário de Andrade, o brasileiro é como um “herói sem nenhum caráter”, pois não possui uma identidade própria, trocando a cultura nacional por estrangeirismos. Esse comportamento social pode ser visto na alimentação, com a substituição de alimentos nacionais, como o açaí e a mandioca, por produtos ultraprocessados. Tal fato representa não só uma perda cultural, como também uma desvalorização das comunidades tradicionais, que sobrevivem da produção e da comercialização desses alimentos. Sendo assim, a falta de valorização da cultura nacional torna a sociedade indiferente ao desaparecimento dos povos tradicionais e dos seus conhecimentos.\n\nDiante do exposto, nota-se que é preciso que a pedra de Sísifo não seja rolada para sempre. Para isso, o Governo Federal deve promover a valorização dos povos e das comunidades tradicionais, por meio de investimentos em programas de proteção a essas populations, como a demarcação de terras e a criação de políticas de incentivo à agricultura familiar. Essa medida terá o intuito de garantir a preservação da cultura e da identidade nacional. Ademais, a mídia deve divulgar a importância dos conhecimentos desses povos, por intermédio de documentários e de reportagens, com o fito de conscientizar a população e de combater a indiferença. Assim, a pedra não mais retornará à base.' },
+                    { id: 4, year: 2022, category: 'cidadania_direitos', theme: 'Desafios para a valorização de comunidades e povos tradicionais no Brasil', text: 'O artigo 231 da Constituição Cidadã reconhece aos povos indígenas suas terras, tradições e organização social, representando um marco na luta pela valorização das comunidades tradicionais. Contudo, a realidade prática distancia-se do ideal constitucional, uma vez que tais grupos enfrentam constantes ameaças aos seus modos de vida. Nesse cenário, a persistência de uma mentalidade colonialista e a pressão de interesses econômicos configuram-se como os principais desafios para a efetiva valorização desses povos no Brasil.\n\nPrimeiramente, é imperativo analisar a herança do colonialismo como um obstáculo à valorização das comunidades tradicionais. O processo de colonização do Brasil foi marcado pela imposição da cultura europeia e pela demonização dos saberes e práticas dos povos originários e de matriz africana. Essa visão etnocêntrica, que perdura no imaginário social, resulta em preconceito e discriminação, dificultando o reconhecimento da riqueza e da importância dessas culturas para a identidade nacional. A ausência de uma educação que valorize a diversidade e a história desses povos nas escolas, por exemplo, reforça estereótipos e impede a construção de uma sociedade verdadeiramente intercultural e respeitosa.\n\nAdemais, a pressão exercida por setores do agronegócio e da mineração representa uma ameaça direta à existência das comunidades tradicionais. A expansão da fronteira agrícola e a exploração de recursos naturais em seus territórios, muitas vezes de forma ilegal, geram conflitos violentos, desmatamento e contaminação dos rios, comprometendo a subsistência e a cultura desses povos. A morosidade na demarcação de terras indígenas e quilombolas, aliada a uma fiscalização ambiental deficiente, agrava essa situação, deixando as comunidades vulneráveis e desprotegidas. Dessa forma, a lógica do lucro se sobrepõe à proteção da vida e da sociobiodiversidade.\n\nFica evidente, portanto, a necessidade de se superar os desafios que impedem a valorização das comunidades e povos tradicionais. Para tal, o Ministério da Educação, em parceria com o Ministério da Cultura, deve implementar a Lei 11.645/08 em todas as escolas do país, por meio da distribuição de materiais didáticos e da formação continuada de professores. O objetivo é promover o estudo da história e da cultura afro-brasileira e indígena, a fim de desconstruir preconceitos e valorizar a diversidade. Outrossim, o Poder Executivo, através do Ministério da Justiça e do Meio Ambiente, deve agilizar os processos de demarcação de terras e intensificar a fiscalização contra invasões e atividades ilegais, garantindo a proteção dos territórios e dos modos de vida tradicionais. Com essas ações, o Brasil poderá, de fato, honrar sua Constituição e valorizar a pluralidade que o constitui.' },
+                    { id: 5, year: 2021, category: 'cidadania_direitos', theme: 'Invisibilidade e registro civil: garantia de acesso à cidadania no Brasil', text: 'Em “Vidas Secas”, obra literária do modernista Graciliano Ramos, Fabiano e sua família de retirantes nordestinos vivem sob uma condição de miséria e de profunda exclusão social. Nesse contexto, os filhos do protagonista não recebem nomes, sendo chamados apenas como “filho mais velho” e “filho mais novo”, recurso que evidencia a desumanização e a invisibilidade de pessoas que, assim como os personagens, não possuem registro civil no Brasil. Desse modo, a problemática da falta de documentação pessoal como fator de exclusão persiste no país e precisa ser resolvida. Com efeito, é preciso analisar as origens e as consequências dessa situação, a fim de garantir o pleno acesso à cidadania.\n\nEm primeiro lugar, é preciso destacar que a falta de acesso ao registro civil no Brasil está relacionada à desigualdade social. Isso porque a população de baixa renda, que reside em áreas rurais e remotas, como comunidades ribeirinhas e indígenas, enfrenta dificuldades de locomoção até os cartórios, que se concentram nos centros urbanos. Ademais, a desinformação e a burocracia excessiva também contribuem para a perpetuação do problema. Nesse sentido, a teoria da “banalidade do mal”, da filósofa Hannah Arendt, pode ser aplicada à realidade brasileira, uma vez que a violação do direito à identidade se tornou tão comum que a sociedade se tornou indiferente a ela. Desse modo, a exclusão social causada pela falta de registro civil é normalizada, o que dificulta a sua resolução.\n\nAlém disso, a invisibilidade decorrente da falta de documentação pessoal gera a precarização da vida do indivíduo. A Declaração Universal dos Direitos Humanos, promulgada pela ONU em 1948, garante o direito de todos à identidade e à cidadania. No entanto, no Brasil, a ausência do registro civil impede que a pessoa tenha acesso a serviços básicos, como saúde, educação e previdência social, o que a marginaliza e a impede de exercer seus direitos e deveres. Sendo assim, a falta de documentação cria uma legião de “invisíveis” que vivem à margem da sociedade e do Estado, o que é inaceitável em um país que se diz democrático.\n\nDiante do exposto, nota-se que a falta de registro civil é um problema grave que precisa ser combatido. Para isso, o Governo Federal deve criar um programa de registro civil itinerante, por meio de parcerias com os estados e os municípios, a fim de levar os serviços de documentação às áreas mais remotas do país. Essa medida terá como objetivo facilitar o acesso da população de baixa renda ao registro civil. Ademais, a mídia deve divulgar campanhas de conscientização sobre a importância do registro civil, por meio de propagandas e de reportagens, com o intuito de informar a população e de combater a banalização do problema. Assim, o Brasil poderá garantir a cidadania a todos os seus habitantes.' },
+                    { id: 6, year: 2021, category: 'cidadania_direitos', theme: 'Invisibilidade e registro civil: garantia de acesso à cidadania no Brasil', text: 'A Declaração Universal dos Direitos Humanos preceitua que todo indivíduo tem direito a uma nacionalidade e a ser reconhecido como pessoa perante a lei. No Brasil, entretanto, a ausência de registro civil para uma parcela significativa da população cria uma legião de "invisíveis", privados do acesso à cidadania. Essa grave problemática é perpetuada pela burocracia excessiva e pela desigualdade socioespacial, exigindo uma atuação estatal mais proativa e humanizada.\n\nNesse viés, a complexidade e a rigidez dos processos burocráticos se apresentam como um entrave fundamental para a obtenção do registro civil. Para muitas famílias em situação de vulnerabilidade, a exigência de múltiplos documentos, os custos associados e a dificuldade de acesso a informações claras transformam um direito básico em um obstáculo quase intransponível. Essa realidade contraria o princípio da eficiência na administração pública, previsto na Constituição, e demonstra uma falha do Estado em simplificar procedimentos para garantir direitos fundamentais. A burocracia, nesse caso, não serve para organizar, mas para excluir, mantendo à margem justamente aqueles que mais precisam do amparo estatal.\n\nOutrossim, a desigualdade socioespacial aprofunda a exclusão. A concentração de cartórios nos centros urbanos e a ausência de postos de atendimento em comunidades rurais, ribeirinhas e periféricas fazem com que a distância geográfica se converta em uma barreira para a cidadania. Para um trabalhador rural ou um morador de uma comunidade isolada na Amazônia, o custo e o tempo de deslocamento para registrar um filho podem ser proibitivos. Essa centralização dos serviços reflete uma lógica que ignora as vastas e diversas realidades do território brasileiro, reforçando a exclusão de populações historicamente marginalizadas e tornando a cidadania um privilégio, e não um direito universal.\n\nPortanto, é imperativo que o Estado brasileiro adote medidas para combater a invisibilidade civil. O Ministério da Cidadania, em conjunto com as Secretarias Estaduais de Justiça, deve expandir e fortalecer os mutirões de registro civil, por meio de unidades móveis que percorram comunidades remotas e periferias urbanas. Essa ação, que deve simplificar as exigências documentais para o registro, visa levar o serviço até o cidadão, removendo as barreiras geográficas e burocráticas. Adicionalmente, o Conselho Nacional de Justiça (CNJ) deve promover campanhas de informação em veículos de grande alcance, como rádio e televisão, para conscientizar a população sobre a gratuidade e a importância da certidão de nascimento. Somente com um Estado que vai ao encontro de seus cidadãos será possível erradicar a invisibilidade e construir um Brasil onde todos, de fato, existam.' },
+                    { id: 7, year: 2020, category: 'sociocultural', theme: 'O estigma associado às doenças mentais na sociedade brasileira', text: 'O filme “Coringa”, retrata a história de um homem que, em virtude de sua condição psicopatológica, é alvo de preconceito e de exclusão social. Fora da ficção, a realidade estadunidense se assemelha à brasileira, uma vez que o estigma associado às doenças mentais ainda é um obstáculo para a inclusão de pessoas com transtornos psicológicos na sociedade. Essa situação é fruto de uma herança histórica e da falta de informação da population, o que gera a discriminação e a precarização da vida do indivíduo.\n\nEm primeiro lugar, é preciso destacar que o estigma associado às doenças mentais no Brasil está relacionado a um legado histórico. Isso porque, desde a Idade Média, com a Inquisição, a loucura era vista como uma possessão demoníaca, o que resultava na exclusão e na punição dos doentes. Posteriormente, no século XIX, com o surgimento dos hospícios, os indivíduos com transtornos mentais eram isolados da sociedade e submetidos a tratamentos desumanos. Desse modo, a visão preconceituosa e a exclusão social dos doentes mentais foram perpetuadas ao longo da história, o que dificulta a sua inclusão na sociedade contemporânea.\n\nAlém disso, a falta de informação da população agrava o problema. Conforme o filósofo Immanuel Kant, a falta de esclarecimento impede o homem de sair da sua “menoridade”. Nesse sentido, a desinformação sobre as doenças mentais contribui para a perpetuação do estigma e da discriminação. A mídia, por exemplo, muitas vezes retrata os doentes mentais de forma estereotipada e sensacionalista, o que reforça o preconceito. Ademais, a falta de debate sobre o tema nas escolas e nos espaços públicos impede que a população compreenda a complexidade das doenças mentais e a importância do tratamento adequado. Sendo assim, a falta de esclarecimento torna a sociedade indiferente ao sofrimento do outro.\n\nDiante do exposto, nota-se que o estigma associado às doenças mentais é um problema grave que precisa ser combatido. Para isso, o Ministério da Saúde deve promover campanhas de conscientização sobre as doenças mentais, por meio de propagandas e de debates na mídia, com o intuito de informar a população e de combater o preconceito. Ademais, as escolas devem promover palestras e atividades sobre o tema, com o objetivo de educar os jovens e de formar cidadãos mais empáticos. Assim, o Brasil poderá se tornar um país mais inclusivo e acolhedor para todos.' },
+                    { id: 8, year: 2020, category: 'sociocultural', theme: 'O estigma associado às doenças mentais na sociedade brasileira', text: 'A Reforma Psiquiátrica, na década de 1980, promoveu um avanço significativo no tratamento de doenças mentais no Brasil, ao propor a substituição do modelo manicomial por uma rede de atenção psicossocial aberta e comunitária. No entanto, o estigma associado a esses transtornos ainda persiste fortemente na sociedade, criando barreiras que impedem o pleno cuidado e a inclusão social dos indivíduos. Essa problemática se enraíza na desinformação generalizada e na herança de uma cultura que patologiza o sofrimento psíquico.\n\nDe um lado, a falta de conhecimento acerca da natureza das doenças mentais alimenta o preconceito e a discriminação. Transtornos como depressão e ansiedade são frequentemente interpretados como "fraqueza", "falta de fé" ou "preguiça", deslegitimando a dor do indivíduo e desencorajando a busca por ajuda profissional. Essa visão distorcida, disseminada pelo senso comum, ignora as bases neurobiológicas e psicossociais das doenças mentais, dificultando o diagnóstico precoce e o acesso ao tratamento adequado. Consequentemente, muitos sofrem em silêncio, temendo o julgamento e a exclusão no ambiente de trabalho, na família e entre os amigos.\n\nDe outro lado, a herança do modelo asilar, que isolava os "loucos" em manicômios, deixou marcas profundas no imaginário social, associando as doenças mentais à incapacidade e à periculosidade. Essa construção histórica do "doente mental" como um ser a ser temido e excluído ainda reverbera na contemporaneidade, manifestando-se em atitudes de aversão e segregação. A dificuldade de inserção no mercado de trabalho e a resistência em estabelecer vínculos sociais são exemplos concretos de como esse estigma impacta negativamente a vida das pessoas com transtornos mentais, privando-as de sua autonomia e de seu direito à cidadania.\n\nUrge, portanto, que a sociedade brasileira desconstrua o estigma que cerca as doenças mentais. Para isso, o Ministério da Saúde, em parceria com a grande mídia, deve veicular campanhas informativas que expliquem, de forma clara e acessível, as causas, os sintomas e os tratamentos para os principais transtornos mentais. Essa iniciativa deve utilizar formatos como novelas e séries para humanizar a questão, com o objetivo de combater a desinformação e promover a empatia. Adicionalmente, o Ministério da Educação deve incluir a temática da saúde mental no currículo escolar, por meio de projetos e debates que ensinem os jovens a identificar sinais de sofrimento psíquico em si e nos outros, e a buscar ajuda. A meta é formar uma geração mais consciente e livre de preconceitos, capaz de construir uma sociedade que cuide, e não que exclua.' },
+                    { id: 9, year: 2019, category: 'sociocultural', theme: 'Democratização do acesso ao cinema no Brasil', text: 'A primeira exibição pública do cinema ocorreu no final do século XIX, na França, e, desde então, essa arte se popularizou mundialmente. No Brasil, contudo, o acesso ao cinema ainda não é democrático, uma vez que a maior parte da população não consegue frequentar as salas de exibição. Essa situação é fruto da desigualdade social e da concentração das salas de cinema nos grandes centros urbanos, o que gera a exclusão de grande parte dos brasileiros.\n\nEm primeiro lugar, é preciso destacar que a desigualdade social é um dos principais fatores que impedem a democratização do acesso ao cinema no Brasil. Isso porque o alto preço dos ingressos e dos produtos vendidos nas bombonieres torna o cinema um lazer restrito às classes mais altas. Nesse sentido, a teoria da “lógica do consumo”, do sociólogo Zygmun Bauman, pode ser aplicada à realidade brasileira, uma vez que o cinema se tornou uma mercadoria, e não um direito. Desse modo, a população de baixa renda é excluída do acesso à cultura e ao lazer, o que aprofunda as desigualdades sociais no país.\n\nAlém disso, a concentração das salas de cinema nos grandes centros urbanos agrava o problema. A maior parte das salas de exibição se encontra nos shoppings das capitais e das grandes cidades, o que dificulta o acesso da população que reside em áreas rurais e em cidades do interior. Essa situação é fruto da falta de investimento em políticas públicas de cultura, que não contemplam a construção de cinemas em áreas remotas. Sendo assim, a exclusão cultural se torna uma realidade para milhões de brasileiros, que não têm a oportunidade de assistir a um filme na tela grande.\n\nDiante do exposto, nota-se que a democratização do acesso ao cinema no Brasil é um desafio que precisa ser superado. Para isso, o Governo Federal deve criar um programa de incentivo à construção de cinemas em cidades do interior e em áreas periféricas, por meio de parcerias com a iniciativa privada. Essa medida terá como objetivo descentralizar o acesso ao cinema e garantir que mais brasileiros possam frequentar as salas de exibição. Ademais, a mídia deve divulgar campanhas de conscientização sobre a importância do cinema como ferramenta de inclusão social, por meio de propagandas e de reportagens, com o intuito de valorizar a cultura nacional e de combater a elitização do acesso ao cinema. Assim, o Brasil poderá se tornar um país mais justo e democrático.' },
+                    { id: 10, year: 2019, category: 'sociocultural', theme: 'Democratização do acesso ao cinema no Brasil', text: 'O movimento modernista de 1922 buscou criar uma arte genuinamente brasileira, que dialogasse com as diversas realidades do país. No entanto, quase um século depois, o acesso a uma das principais manifestações artísticas, o cinema, ainda reflete a profunda desigualdade nacional. A democratização do acesso ao cinema no Brasil é dificultada não apenas pela elitização dos preços, mas também pela distribuição geográfica excludente das salas. Essa conjuntura limita o repertório cultural dos cidadãos e fere o direito à cultura, consagrado na Constituição.\n\nSob essa ótica, a questão econômica se impõe como uma barreira inicial. O alto custo dos ingressos, potencializado pelos preços de alimentos e bebidas nos complexos de exibição, transforma uma atividade de lazer em um artigo de luxo, inacessível para a maioria da população de baixa renda. Essa mercantilização da cultura, que prioriza o lucro em detrimento do acesso, cria uma segregação social e espacial, onde o entretenimento cinematográfico fica restrito aos frequentadores de shoppings centers, majoritariamente localizados em áreas nobres. Dessa forma, a sétima arte, que poderia ser um instrumento de reflexão e inclusão, torna-se um símbolo de distinção social.\n\nParalelamente, a concentração geográfica das salas de cinema agrava o cenário de exclusão. Cidades pequenas, zonas rurais e bairros periféricos dos grandes centros urbanos são frequentemente desprovidos de cinemas, privando seus moradores do contato com a produção audiovisual. Essa ausência de infraestrutura cultural nesses locais não apenas limita as opções de lazer, mas também impede que as narrativas e identidades dessas comunidades sejam representadas e vistas nas telas. A falta de políticas de interiorização e de fomento a cinemas de rua contribui para a manutenção de um circuito cinematográfico restrito, que não reflete a diversidade do território e da população brasileira.\n\nÉ evidente, portanto, a necessidade de se promover a democratização do acesso ao cinema no Brasil. O Ministério da Cultura, em parceria com a Agência Nacional do Cinema (Ancine), deve criar um programa de expansão de salas de cinema para o interior e as periferias, por meio de incentivos fiscais para empresas que instalarem complexos nessas áreas e da criação de cinemas públicos comunitários. O objetivo é descentralizar η oferta e garantir o acesso geográfico. Além disso, o Governo Federal deve fortalecer e ampliar o programa "Vale-Cultura", destinando uma verba específica para o consumo de produtos culturais, como ingressos de cinema, a fim de mitigar η barreira econômica. Assim, o Brasil poderá fazer jus à sua diversidade cultural, tornando o cinema uma arte para todos.' },
+                    { id: 11, year: 2018, category: 'tecnologia', theme: 'Manipulação do comportamento do usuário pelo controle de dados na internet', text: 'Em sua obra “O grande irmão está de olho em você”, George Orwell retrata uma sociedade controlada por um poder autoritário que vigia e manipula a população. Fora da ficção, a realidade contemporânea se assemelha à obra de Orwell, uma vez que a manipulação do comportamento do usuário pelo controle de dados na internet é uma realidade no Brasil. Essa situação é fruto da falta de regulamentação do setor e da ingenuidade da população, o que gera a violação da privacidade e a alienação do indivíduo.\n\nEm primeiro lugar, é preciso destacar que a falta de regulamentação do setor de tecnologia contribui para a manipulação do comportamento do usuário na internet. Isso porque as grandes empresas de tecnologia, como o Google e o Facebook, coletam e utilizam os dados dos usuários para fins comerciais e políticos, sem que haja uma fiscalização efetiva do Estado. Nesse sentido, a teoria do “capitalismo de vigilância”, da socióloga Shoshana Zuboff, pode ser aplicada à realidade brasileira, uma vez que os dados dos usuários se tornaram uma mercadoria valiosa. Desse modo, a falta de regulamentação do setor permite que as empresas de tecnologia manipulem o comportamento do usuário, o que fere a sua liberdade de escolha.\n\nAlém disso, a ingenuidade da população agrava o problema. Conforme o filósofo Theodor Adorno, a indústria cultural produz uma cultura de massa que aliena o indivíduo e o impede de pensar criticamente. Nesse sentido, a falta de educação digital contribui para que a população não compreenda os riscos da exposição de seus dados na internet. Muitas pessoas, por exemplo, não leem os termos de uso dos aplicativos e das redes sociais, o que as torna vulneráveis à manipulação. Sendo assim, a falta de conhecimento sobre o funcionamento da internet torna a população presa fácil para as empresas de tecnologia.\n\nDiante do exposto, nota-se que a manipulação do comportamento do usuário pelo controle de dados na internet é um problema grave que precisa ser combatido. Para isso, o Congresso Nacional deve criar uma lei que regulamente o uso de dados dos usuários na internet, por meio de um amplo debate com a sociedade civil. Essa medida terá como objetivo proteger a privacidade dos usuários e garantir a sua liberdade de escolha. Ademais, as escolas devem incluir a educação digital no currículo escolar, com o objetivo de formar cidadãos mais críticos e conscientes dos riscos da internet. Assim, o Brasil poderá se tornar um país mais livre e democrático.' },
+                    { id: 12, year: 2018, category: 'tecnologia', theme: 'Manipulação do comportamento do usuário pelo controle de dados na internet', text: 'A Revolução Técnico-Científico-Informacional, iniciada na segunda metade do século XX, inaugurou uma nova era de comunicação e interação social. Contudo, o avanço tecnológico trouxe consigo um desafio contemporâneo: a manipulação do comportamento do usuário pelo controle de dados na internet. Esse fenômeno, operado por algoritmos de grandes empresas, cria bolhas ideológicas e estimula o consumismo, ameaçando a autonomia de pensamento e a própria democracia.\n\nNesse contexto, a personalização de conteúdo, que a princípio parece um benefício, funciona como um mecanismo de aprisionamento. Os algoritmos das redes sociais e dos mecanismos de busca analisam o histórico de navegação, as curtidas e os compartilhamentos dos usuários para filtrar o que lhes será mostrado. Esse processo resulta na criação de "bolhas informacionais", nas quais o indivíduo é exposto apenas a conteúdos que reforçam suas crenças preexistentes, limitando o contato com o contraditório e o diferente. Como consequência, a sociedade se fragmenta em grupos polarizados, o diálogo se torna inviável e o terreno se torna fértil para a disseminação de desinformação e discursos de ódio.\n\nAdemais, o controle de dados é a base de um modelo de negócio que visa à manipulação do consumo. As informações sobre os interesses, desejos e vulnerabilidades dos usuários são transformadas em mercadorias e vendidas para anunciantes, que direcionam publicidade de forma cada vez mais precisa e persuasiva. Essa prática, conhecida como "capitalismo de vigilância", explora as fragilidades psicológicas dos indivíduos para induzir a compra de produtos e serviços, muitas vezes desnecessários. Dessa forma, a autonomia do consumidor é minada, e a liberdade de escolha se torna uma ilusão, controlada por interesses comerciais ocultos.\n\nFica clara, portanto, a necessidade de se combater a manipulação do comportamento na internet. Para tanto, o Poder Legislativo deve aprimorar a Lei Geral de Proteção de Dados (LGPD), por meio da criação de mecanismos que garantam a transparência dos algoritmos e deem ao usuário o controle efetivo sobre seus dados. A fiscalização da Autoridade Nacional de Proteção de Dados (ANPD) deve ser fortalecida para coibir práticas abusivas. Concomitantemente, o Ministério da Educação deve promover o letramento digital nas escolas, através de projetos que ensinem os alunos a identificar bolhas informacionais e a navegar de forma crítica e segura na internet. O objetivo é formar cidadãos capazes de exercer sua autonomia em um mundo cada vez mais digital.' },
+                    { id: 13, year: 2023, category: 'sociocultural', theme: 'Desafios para o enfrentamento da invisibilidade do trabalho de cuidado realizado pela mulher no Brasil', text: 'Em "O Segundo Sexo", a filósofa Simone de Beauvoir afirma que "não se nasce mulher, torna-se mulher". Essa célebre frase elucida como os papéis de gênero são construções sociais e não determinações biológicas. No Brasil, essa construção relegou à mulher a responsabilidade quase exclusiva pelo trabalho de cuidado, uma atividade essencial para a sociedade, mas sistematicamente invisibilizada e desvalorizada. Esse desafio, que perpetua a desigualdade de gênero, é alimentado por uma cultura patriarcal e pela omissão do Estado em prover suporte adequado.\n\nEm primeiro plano, a naturalização do cuidado como uma "vocação" feminina é a base da sua invisibilidade. A estrutura patriarcal da sociedade brasileira, ao longo da história, associou a figura da mulher ao espaço doméstico e às tarefas de criação dos filhos, cuidado dos idosos e manutenção do lar. Essa associação, romantizada como um ato de amor e doação, oculta o fato de que se trata de um trabalho extenuante, que consome tempo e energia e que possui um valor econômico real. A consequência direta é a dupla ou tripla jornada de trabalho para muitas mulheres, que precisam conciliar suas carreiras profissionais com as responsabilidades domésticas, gerando esgotamento físico e mental e limitando suas oportunidades de crescimento.\n\nEm segundo plano, a ausência de políticas públicas que reconheçam e redistribuam o trabalho de cuidado agrava a situação. A oferta insuficiente de creches públicas de qualidade, a falta de centros-dia para idosos e a inexistência de uma licença-paternidade ampla e obrigatória são exemplos da omissão estatal. Essa lacuna força as mulheres a arcarem sozinhas com a responsabilidade pelo cuidado, muitas vezes tendo que abandonar o mercado de trabalho formal, o que aprofunda a sua dependência financeira e a desigualdade de renda entre os gêneros. O Estado, ao não prover a infraestrutura necessária, legitima a divisão sexual do trabalho e perpetua um ciclo de exploração.\n\nDepreende-se, portanto, a urgência de se enfrentar a invisibilidade do trabalho de cuidado no Brasil. O Congresso Nacional deve aprovar uma reforma na licença-parental, por meio da equiparação dos períodos de licença para pais e mães e da criação de mecanismos que incentivem o seu uso pelos homens. Essa medida visa desconstruir a ideia de que o cuidado é uma responsabilidade exclusivamente feminina. Paralelamente, os municípios devem ampliar a rede de serviços de cuidado, como creches e centros para idosos, utilizando recursos do orçamento público para garantir o acesso universal. O objetivo é socializar η responsabilidade pelo cuidado, liberando as mulheres para que possam exercer sua plena cidadania.' },
+                    { id: 14, year: 2022, category: 'cidadania_direitos', theme: 'Desafios para a valorização de comunidades e povos tradicionais no Brasil', text: 'O líder indígena e ambientalista Ailton Krenak, em sua obra "Ideias para adiar o fim do mundo", propõe que a pluralidade de visões de mundo e de modos de vida é a maior riqueza da humanidade. Paradoxalmente, no Brasil, as comunidades e povos tradicionais, guardiões de saberes ancestrais e da sociobiodiversidade, enfrentam um processo histórico de invisibilização e violência. A superação dos desafios para a sua valorização passa, necessariamente, pelo combate ao racismo ambiental e pela garantia de seus direitos territoriais.\n\nNessa perspectiva, o racismo ambiental se manifesta como uma força motriz da desvalorização desses povos. Projetos de desenvolvimento, como hidrelétricas, mineração e expansão do agronegócio, são frequentemente implementados em seus territórios sem consulta prévia e com impactos socioambientais devastadores. A contaminação de rios por mercúrio, o desmatamento e a expulsão de famílias de suas terras são exemplos de como o ônus do "progresso" recai desproporcionalmente sobre essas populações. Essa lógica perversa, que prioriza o lucro em detrimento da vida, reflete um racismo estrutural que considera os modos de vida tradicionais como entraves ao desenvolvimento, e não como parte da solução para a crise climática e ambiental.\n\nConsequentemente, a luta pela terra é central para a valorização e a sobrevivência das comunidades tradicionais. O território, para esses povos, não é apenas um meio de produção, mas um espaço sagrado, fundamento de sua cultura, identidade e espiritualidade. A morosidade e a paralisação dos processos de demarcação de terras indígenas e de titulação de territórios quilombolas, garantidos pela Constituição de 1988, deixam essas comunidades em um estado de constante insegurança e vulnerabilidade a invasões e conflitos. A ausência de uma política fundiária que respeite os direitos desses povos é, portanto, o principal entrave para a sua autonomia e para a preservação de seus conhecimentos.\n\nTorna-se evidente, pois, que a valorização das comunidades tradicionais é uma pauta urgente. O Estado brasileiro, através da FUNAI e da Fundação Palmares, deve retomar e acelerar os processos de demarcação e titulação de terras, por meio da alocação de recursos e da criação de forças-tarefa para agilizar as análises. O objetivo é garantir a segurança jurídica e física desses territórios. Adicionalmente, o Ministério da Justiça e Segurança Pública deve fortalecer a fiscalização contra crimes ambientais em terras tradicionais, responsabilizando os infratores e protegendo as lideranças ameaçadas. Somente com a garantia de seus territórios e a proteção de suas vidas, os povos tradicionais poderão continuar a adiar o fim do mundo.' },
+                    { id: 15, year: 2021, category: 'cidadania_direitos', theme: 'Invisibilidade e registro civil: garantia de acesso à cidadania no Brasil', text: 'A filósofa Hannah Arendt, ao discutir a condição dos refugiados, cunhou o conceito de "direito a ter direitos", referindo-se à cidadania como a condição prévia para a fruição de todas as outras garantias. No Brasil, essa reflexão se mostra assustadoramente atual para os milhões de brasileiros que, por não possuírem registro civil, são privados dessa condição primordial. Essa invisibilidade, que os exclui do acesso a serviços básicos, é um sintoma da profunda desigualdade social do país e da incapacidade do Estado em alcançar suas populações mais vulneráveis.\n\nDe um lado, a pobreza e a desinformação se configuram como causas estruturais da falta de registro. Para famílias que vivem em extrema vulnerabilidade, a preocupação imediata com a sobrevivência muitas vezes se sobrepõe à necessidade de obter um documento. A falta de recursos para o transporte até um cartório, a ausência de documentos dos próprios pais e o desconhecimento sobre a gratuidade e a importância da certidão de nascimento criam um ciclo de exclusão que se transmite entre gerações. Essa realidade evidencia que a cidadania no Brasil ainda não é universal, mas condicionada por fatores socioeconômicos, o que contradiz os princípios fundamentais da República.\n\nDe outro lado, a omissão do Estado em implementar políticas de busca ativa perpetua essa invisibilidade. A estrutura estatal, muitas vezes centralizada e burocrática, falha em chegar às áreas mais remotas do país, como comunidades rurais, ribeirinhas e indígenas, onde se concentram os "sem registro". A espera passiva pelo cidadão no cartório é uma estratégia ineficaz em um país de dimensões continentais e com bolsões de miséria. A ausência de um Estado que vá ativamente ao encontro de seus cidadãos mais vulneráveis é uma forma de abandono, que os condena a uma existência à margem da sociedade, sem acesso a programas sociais, à saúde, à educação e ao próprio reconhecimento como sujeitos de direito.\n\nFica claro, portanto, que a garantia do acesso à cidadania exige uma mudança de paradigma na atuação estatal. O Governo Federal, em articulação com estados e municípios, deve instituir o "Programa de Busca Ativa pelo Registro Civil", por meio de unidades móveis e de parcerias com agentes comunitários de saúde e assistência social para identificar e documentar a população não registrada, especialmente em áreas remotas. Essa ação deve ter um caráter contínuo e desburocratizado. Concomitantemente, a mídia, em colaboração com o Poder Judiciário, deve promover campanhas de utilidade pública que informem sobre o direito ao registro e os caminhos para obtê-lo. O objetivo é transformar a invisibilidade em visibilidade e garantir que cada brasileiro tenha, de fato, o direito a ter direitos.' },
+                    { id: 16, year: 2020, category: 'sociocultural', theme: 'O estigma associado às doenças mentais na sociedade brasileira', text: 'O psicanalista Contardo Calligaris costumava dizer que o sofrimento é uma experiência inerente à vida, mas que a cultura pode nos ajudar a dar um sentido a ele. Na sociedade brasileira, contudo, o sofrimento psíquico é frequentemente silenciado e estigmatizado, transformando a doença mental em um tabu que isola e adoece ainda mais. Esse estigma, enraizado em preconceitos históricos e na falta de informação, representa o principal obstáculo para o cuidado efetivo em saúde mental e para a construção de uma sociedade mais acolhedora.\n\nEm primeira análise, a associação da doença mental à fraqueza moral ou à falta de vontade deslegitima a dor do indivíduo. Essa visão, que ignora os complexos fatores biológicos, psicológicos e sociais que causam os transtornos mentais, culpabiliza a vítima e a desencoraja a procurar ajuda. O medo de ser rotulado como "louco", "fraco" ou "incapaz" no ambiente de trabalho, na escola ou mesmo na família leva muitos a esconderem seus sintomas, agravando o quadro e aumentando o risco de suicídio. A falta de uma educação emocional e de um debate aberto sobre saúde mental desde a infância contribui para a perpetuação desse ciclo de silêncio e sofrimento.\n\nAdicionalmente, a herança do modelo manicomial, que tratava os doentes mentais com exclusão e violência, ainda influencia a percepção social sobre o tema. A imagem do "louco perigoso", reforçada por representações estereotipadas na mídia, gera medo e aversão, dificultando a reintegração social de pessoas que passaram por tratamento psiquiátrico. A luta antimanicomial buscou desconstruir essa imagem, propondo um cuidado em liberdade, mas o estigma ainda cria barreiras para a obtenção de emprego, moradia e laços afetivos, condenando muitos a uma espécie de "morte social", mesmo após a recuperação.\n\nSendo assim, a desestigmatização da saúde mental é uma tarefa coletiva e urgente. O Ministério da Educação, em parceria com o Ministério da Saúde, deve implementar um programa nacional de saúde mental nas escolas, por meio de palestras, rodas de conversa e da capacitação de professores para identificar alunos em sofrimento. O objetivo é criar um ambiente escolar acolhedor e normalizar a busca por ajuda psicológica desde cedo. Paralelamente, a mídia deve assumir sua responsabilidade social, produzindo e veiculando conteúdos que retratem as doenças mentais de forma realista e humanizada, dando voz a quem vive com transtornos e a profissionais da área. Somente com informação e empatia, a sociedade brasileira poderá substituir o estigma pelo acolhimento.' },
+                    { id: 17, year: 2019, category: 'sociocultural', theme: 'Democratização do acesso ao cinema no Brasil', text: 'O cineasta Glauber Rocha, um dos expoentes do Cinema Novo, defendia a ideia de "uma câmera na mão e uma ideia na cabeça" como forma de produzir uma arte engajada e acessível, que refletisse a realidade brasileira. Décadas depois, no entanto, o acesso à tela grande, principal veículo de difusão cinematográfica, ainda é um privilégio para poucos no Brasil. A elitização do cinema, sustentada por barreiras econômicas e geográficas, limita o exercício do direito à cultura e aprofunda o abismo social do país.\n\nNesse panorama, o alto custo do ingresso é o fator mais evidente de exclusão. Em um país com profundas desigualdades de renda, o preço de um bilhete de cinema, somado aos custos de transporte e alimentação, torna o programa inviável para a maior parte das famílias. A cultura, nesse modelo de negócio, é tratada como uma mercadoria de luxo e não como um direito fundamental, conforme assegurado pela Constituição de 1988. Essa lógica de mercado concentra as salas de exibição em shoppings de áreas nobres, reforçando uma segregação que afasta a população de baixa renda dos bens culturais.\n\nAlém da barreira econômica, a má distribuição das salas de cinema pelo território nacional constitui um grave obstáculo à democratização. A esmagadora maioria dos cinemas brasileiros está localizada nas capitais e grandes centros urbanos, deixando vastas regiões, cidades do interior e bairros periféricos completamente desassistidos. Essa "desertificação cultural" não apenas priva milhões de brasileiros do acesso ao lazer cinematográfico, mas também restringe seus horizontes e repertórios culturais, impedindo o contato com diferentes estéticas, narrativas e visões de mundo. A ausência de cinemas de rua e de políticas de interiorização agrava esse quadro, consolidando um acesso desigual e concentrado.\n\nÉ imprescindível, portanto, que se adotem políticas públicas para a efetiva democratização do acesso ao cinema. O Governo Federal, por intermédio da Ancine, deve criar um programa de fomento à abertura de salas de cinema em cidades de pequeno e médio porte e em periferias, oferecendo linhas de crédito e incentivos fiscais para exibidores que se instalarem nessas localidades. A finalidade é interiorizar e descentralizar o acesso. Concomitantemente, os municípios devem promover projetos de cinema itinerante e sessões gratuitas em praças e espaços públicos, utilizando a estrutura de suas secretarias de cultura, para levar a experiência do cinema a quem não pode ir até ele. Assim, a magia da sétima arte poderá, finalmente, alcançar todos os brasileiros.' },
+                    { id: 18, year: 2018, category: 'tecnologia', theme: 'Manipulação do comportamento do usuário pelo controle de dados na internet', text: 'O filósofo sul-coreano Byung-Chul Han, em sua obra "Sociedade da Transparência", argumenta que a exposição voluntária nas redes sociais cria um "panóptico digital" onde todos vigiam a todos. Essa superexposição, contudo, tem uma consequência ainda mais profunda: ela alimenta algoritmos que manipulam o comportamento dos usuários, transformando a internet em um campo de controle sutil e eficaz. No Brasil, essa manipulação, que se manifesta na criação de bolhas ideológicas e na indução ao consumo, representa uma séria ameaça à autonomia individual e ao debate público democrático.\n\nEm primeira instância, a personalização algorítmica do conteúdo restringe o universo informacional dos usuários, aprisionando-os em bolhas de concordância. Ao analisar os dados de navegação, os algoritmos selecionam e exibem prioritariamente as notícias, opiniões e produtos que se alinham com os interesses e visões de mundo já existentes do indivíduo. Embora confortável, esse filtro limita a exposição a perspectivas divergentes, essenciais para o desenvolvimento do pensamento crítico. O resultado é a polarização da sociedade, a radicalização de opiniões e a erosão do diálogo, uma vez que os cidadãos perdem a capacidade de compreender e de debater com quem pensa diferente.\n\nEm segunda instância, o controle de dados serve como ferramenta para uma publicidade cada vez mais invasiva e manipuladora. As informações pessoais, transformadas em mercadorias no modelo do "capitalismo de vigilância", permitem que as empresas direcionem anúncios com base nas vulnerabilidades e desejos mais íntimos dos consumidores. Essa prática ultrapassa a mera persuasão e adentra o campo da manipulação psicológica, explorando inseguranças para impulsionar o consumo. A autonomia do indivíduo é, assim, comprometida, e a tomada de decisões, que deveria ser livre e consciente, passa a ser sutilmente guiada por interesses comerciais.\n\nFica evidente, portanto, a necessidade de se estabelecer limites para o controle de dados e a manipulação na internet. O Congresso Nacional deve fortalecer a Lei Geral de Proteção de Dados (LGPD), por meio da criação de emendas que exijam maior transparência dos algoritmos utilizados pelas plataformas digitais e que garantam ao usuário o direito de optar por um feed de notícias não personalizado. A Autoridade Nacional de Proteção de Dados (ANPD) precisa ter sua estrutura ampliada para fiscalizar e punir com mais rigor as empresas que violarem a legislação. Adicionalmente, as instituições de ensino, em parceria com a sociedade civil, devem desenvolver projetos de letramento midiatico e digital, para capacitar crianças e jovens a identificar e a se proteger das armadilhas da manipulação online, formando cidadãos mais autônomos e conscientes na era digital.' },
+                    { id: 20, year: 2017, category: 'cidadania_direitos', theme: 'Desafios para a formação educacional de surdos no Brasil', text: 'A Lei Brasileira de Inclusão, de 2015, representou um avanço normativo crucial para a educação de surdos, ao reconhecer a Língua Brasileira de Sinais (Libras) como primeira língua e determinar a oferta de educação bilíngue. Contudo, a distância entre a lei e a realidade das salas de aula ainda é imensa, configurando um desafio complexo. A efetivação de uma formação educacional de qualidade para os surdos no Brasil é obstruída pela carência de profissionais qualificados e pela persistência de uma cultura escolar que não está preparada para η diversidade linguística.\n\nDe um lado, a falta de professores bilíngues e de intérpretes de Libras é o gargalo mais crítico do sistema. A maioria dos cursos de pedagogia e licenciaturas não forma adequadamente os futuros docentes para a educação de surdos, resultando em profissionais que desconhecem a Libras e a cultura surda. A carência de intérpretes, por sua vez, faz com que muitos alunos surdos sejam matriculados em classes regulares como meros ouvintes, sem acesso real ao conteúdo curricular. Essa "inclusão excludente" não apenas compromete o desenvolvimento acadêmico, mas também gera um sentimento de isolamento e inadequação, violando o direito fundamental à educação.\n\nDe outro lado, a cultura escolar hegemônica, centrada no oralismo e na língua portuguesa, representa uma barreira atitudinal. Muitas escolas não compreendem a surdez como uma diferença linguística e cultural, mas como uma deficiência a ser "corrigida". Essa visão equivocada leva à desvalorização da Libras e à falta de investimento em materiais didáticos bilíngues e em práticas pedagógicas que contemplem a especificidade do aluno surdo. A ausência de um ambiente escolar que celebre a cultura surda e promova a interação entre alunos surdos e ouvintes aprofunda a exclusão e impede o desenvolvimento pleno da identidade surda.\n\nÉ urgente, portanto, que se adotem medidas para transformar a educação de surdos no Brasil. O Ministério da Educação deve reformular as diretrizes curriculares dos cursos de formação de professores, por meio da inclusão obrigatória de disciplinas de Libras e de práticas pedagógicas para a educação bilíngue. O objetivo é garantir que todos os professores saibam se comunicar e ensinar alunos surdos. Além disso, os governos estaduais e municipais devem realizar concursos públicos para a contratação massiva de intérpretes de Libras e de professores bilíngues, a fim de suprir a carência desses profissionais nas escolas. Somente com investimento em formação e estrutura, a educação de surdos deixará de ser um desafio para se tornar um direito plenamente efetivado.' },
+                    { id: 23, year: 2016, category: 'cidadania_direitos', theme: 'Caminhos para combater a intolerância religiosa no Brasil', text: 'A diversidade religiosa é uma das marcas da formação histórica e cultural do Brasil. A Constituição Federal, em seu artigo 5º, assegura a inviolabilidade da liberdade de consciência e de crença, estabelecendo o país como um Estado laico. Todavia, a crescente onda de intolerância religiosa, direcionada principalmente a religiões de matriz africana, revela uma faceta sombria da sociedade brasileira e um profundo desrespeito à Carta Magna. Combater essa chaga social exige a desconstrução do racismo religioso e a promoção de uma educação para a diversidade.\n\nNesse contexto, é fundamental compreender a intolerância religiosa como uma manifestação do racismo estrutural. As religiões afro-brasileiras, como o Candomblé e a Umbanda, são alvos preferenciais de ataques não por acaso, mas por representarem a herança cultural e espiritual de populações historicamente escravizadas e marginalizadas. A demonização de seus ritos, orixás e símbolos é uma continuação do projeto colonial de apagamento da identidade negra. A violência contra terreiros, a agressão a seus praticantes e a disseminação de discursos de ódio são, portanto, crimes de racismo e devem ser tratados com o rigor da lei, para que a impunidade não continue a alimentar o ciclo de violência.\n\nParalelamente, a falta de conhecimento e a disseminação de estereótipos são um terreno fértil para o preconceito. A ausência do ensino da história e da cultura afro-brasileira e indígena nas escolas, conforme determina a lei, contribui para que as novas gerações cresçam sem compreender a riqueza e a importância da diversidade religiosa para a identidade nacional. A mídia, por sua vez, muitas vezes reforça o estigma ao retratar essas religiões de forma superficial ou sensacionalista. A construção de uma cultura de paz e de respeito passa, impreterivelmente, pela educação e pela informação de qualidade, que desmistifiquem crenças e promovam o diálogo inter-religioso.\n\nFica evidente, pois, a necessidade de uma ação conjunta da sociedade e do Estado para combater a intolerância religiosa. O Poder Judiciário e o Ministério Público devem atuar com celeridade e rigor na apuração e punição dos crimes de ódio religioso, por meio da aplicação da lei que equipara a injúria religiosa ao racismo. A mensagem deve ser clara: a intolerância não será tolerada. Adicionalmente, as secretarias de Educação devem garantir a efetiva implementação do ensino da história e cultura afro-brasileira nas escolas, capacitando professores e distribuindo material didático adequado, para que as crianças aprendam desde cedo a respeitar e a valorizar todas as formas de crer. Somente assim o Brasil poderá ser, de fato, um país laico e plural.' },
+                    { id: 24, year: 2015, category: 'sociocultural', theme: 'A persistência da violência contra a mulher na sociedade brasileira', text: 'A Lei Maria da Penha, sancionada em 2006, é reconhecida pela ONU como uma das melhores legislações do mundo no combate à violência doméstica. No entanto, os alarmantes índices de feminicídio e de agressões no Brasil demonstram que a existência de uma lei, por si só, é insuficiente para erradicar um problema com raízes culturais profundas. A persistência da violência contra a mulher é um sintoma de uma sociedade patriarcal, que naturaliza a misoginia e o sentimento de posse sobre o corpo feminino.\n\nEm primeiro lugar, a cultura do machismo se revela como o pilar que sustenta a violência de gênero. Desde a infância, meninos são socializados para serem "fortes" e "dominadores", enquanto meninas são ensinadas a serem "submissas" e "recatadas". Essa construção social de papéis de gênero assimétricos cria uma relação de poder desigual, na qual o homem se sente no direito de controlar a vida, as escolhas e o corpo da mulher. O ciúme é romantizado, a culpa é transferida para a vítima ("ela provocou") e a agressão é vista como um "crime passional", e não como uma violação dos direitos humanos. Essa mentalidade, disseminada em conversas cotidianas, piadas e produtos culturais, banaliza a violência e dificulta a sua superação.\n\nEm segundo lugar, a falha do Estado em garantir a proteção efetiva das vítimas e a punição dos agressores contribui para a perpetuação do ciclo de violência. Apesar dos avanços legais, muitas mulheres ainda encontram delegacias despreparadas para o acolhimento, sofrem com a morosidade do sistema judiciário e não têm acesso a uma rede de apoio psicossocial e econômico que lhes permita romper com o agressor. A subnotificação dos casos, motivada pelo medo, pela vergonha e pela dependência financeira, mascara a real dimensão do problema e dificulta a formulação de políticas públicas eficazes. A impunidade, por sua vez, envia a mensagem de que a violência contra a mulher é um crime de menor importância, encorajando novos agressores.\n\nPortanto, o combate à violência contra a mulher exige uma abordagem multifacetada. O Estado, através do Ministério da Educação, deve implementar programas de educação para a igualdade de gênero em todas as escolas, por meio de materiais didáticos e da formação de professores, para desconstruir o machismo desde a base. Ao mesmo tempo, o Poder Público municipal deve ampliar e fortalecer a rede de atendimento à mulher, com mais Delegacias da Mulher, Centros de Referência e casas-abrigo, garantindo um acolhimento humanizado e o suporte necessário para que as vítimas possam recomeçar suas vidas. A tolerância com a violência deve ser zero, na lei e na cultura.' },
+                    { id: 25, year: 2014, category: 'etica_consumo', theme: 'Publicidade infantil em questão no Brasil', text: 'O Estatuto da Criança e do Adolescente (ECA) estabelece a proteção integral e a prioridade absoluta dos direitos infantis. Nesse contexto, a publicidade direcionada a esse público se torna uma questão controversa, pois explora a hipervulnerabilidade de indivíduos em fase de desenvolvimento, incapazes de discernir plenamente a natureza persuasiva da comunicação mercadológica. A discussão sobre a regulamentação da publicidade infantil no Brasil coloca em oposição a liberdade de expressão comercial e o dever de proteção à infância, sendo este último o princípio que deve prevalecer.\n\nSob um primeiro aspecto, a publicidade infantil é eticamente questionável por se aproveitar da imaturidade psicológica da criança. Com o uso de cores vibrantes, personagens licenciados, trilhas sonoras contagiantes e a promessa de brindes, a publicidade cria um universo lúdico que mascara seu objetivo final: a venda de um produto. A criança, sem as ferramentas cognitivas para analisar criticamente a mensagem, torna-se um alvo fácil, pressionando os pais a satisfazerem desejos de consumo que não são genuinamente seus. Essa prática contribui para a formação de hábitos alimentares inadequados, com o estímulo ao consumo de ultraprocessados, e para o desenvolvimento de valores materialistas e do consumismo precoce.\n\nSob um segundo aspecto, a ausência de uma regulamentação mais estrita sobre o tema representa uma omissão do Estado em seu dever de proteger as crianças. Embora o Código de Defesa do Consumidor e a Resolução 163 do Conanda considerem abusiva a publicidade direcionada ao público infantil, a fiscalização é ineficaz e a pressão do setor publicitário e industrial dificulta avanços legislativos. A autorregulamentação, defendida pelas empresas, mostra-se insuficiente, pois coloca os interesses comerciais acima do bem-estar infantil. A proteção da criança não pode ser uma opção, mas uma obrigação, o que demanda regras claras que limitem a exposição infantil ao marketing.\n\nDiante do exposto, é fundamental que a publicidade infantil seja rigorosamente regulamentada. O Congresso Nacional deve aprovar uma lei federal que proíba qualquer forma de comunicação mercadológica direcionada a crianças menores de 12 anos em todos os meios, incluindo televisão, internet e pontos de venda. Para tanto, o debate legislativo deve ser pautado por especialistas em infância e saúde pública, e não apenas por interesses comerciais. Adicionalmente, as escolas, em parceria com as famílias, devem promover programas de educação para o consumo, por meio de atividades lúdicas e debates, a fim de desenvolver o senso crítico das crianças e prepará-las para lidar com os apelos da sociedade de consumo. Proteger a infância hoje é garantir uma sociedade mais saudável amanhã.' }
+                ],
+                favorites: [],
+                moderatorPass: 'admin123',
+                theme: 'system',
+                highlights: {}
+            };
+            
+            // VIEWS
+            const mainContent = document.querySelector('main > div');
+            const dashboardSection = document.getElementById('dashboard');
+            const filterSection = document.getElementById('filter-section');
+            const gallerySection = document.getElementById('essays-gallery');
+            const readingView = document.getElementById('reading-view');
+            const backToGalleryBtn = document.getElementById('back-to-gallery-btn');
+            const readingTitle = document.getElementById('reading-title');
+            const readingYear = document.getElementById('reading-year');
+            const readingText = document.getElementById('reading-text');
+            const essaysCount = document.getElementById('essays-count');
+            
+            const searchInput = document.getElementById('search-input');
+            const yearFilter = document.getElementById('year-filter');
+            const categoryFilter = document.getElementById('category-filter');
+            const sortSelect = document.getElementById('sort-select');
+            const favoritesToggle = document.getElementById('favorites-toggle');
+            
+            const essaysGrid = document.getElementById('essays-grid');
+            
+            const moderatorLogin = document.getElementById('moderator-login');
+            const moderatorLoginForm = document.getElementById('moderator-login-form');
+            const moderatorPassInput = document.getElementById('moderator-pass');
+            const loginError = document.getElementById('login-error');
+            
+            const moderatorPanel = document.getElementById('moderator-panel');
+            const moderatorModeBtn = document.getElementById('moderator-mode-btn');
+            const logoutBtn = document.getElementById('logout-btn');
+            
+            const addCategoryForm = document.getElementById('add-category-form');
+            const newCategoryNameInput = document.getElementById('new-category-name');
+            const manageCategoriesList = document.getElementById('manage-categories-list');
+
+            const essayFormTitle = document.getElementById('essay-form-title');
+            const addEssayForm = document.getElementById('add-essay-form');
+            const editingEssayIdInput = document.getElementById('editing-essay-id');
+            const newEssayYearInput = document.getElementById('new-essay-year');
+            const newEssayThemeInput = document.getElementById('new-essay-theme');
+            const newEssayCategorySelect = document.getElementById('new-essay-category');
+            const newEssayTextInput = document.getElementById('new-essay-text');
+            const saveEssayBtn = document.getElementById('save-essay-btn');
+            const cancelEditBtn = document.getElementById('cancel-edit-btn');
+            const manageEssaysList = document.getElementById('manage-essays-list');
+            
+            const changePasswordForm = document.getElementById('change-password-form');
+            const currentPasswordInput = document.getElementById('current-password');
+            const newPasswordInput = document.getElementById('new-password');
+            const passwordMessage = document.getElementById('password-message');
+            
+            const confirmationModal = document.getElementById('confirmation-modal');
+            const modalTitleText = document.getElementById('modal-title-text');
+            const modalBodyText = document.getElementById('modal-body-text');
+            const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+            const cancelDeleteBtn = document.getElementById('cancel-delete-btn');
+            
+            const themeToggleBtn = document.getElementById('theme-toggle-btn');
+            const highlighterPalette = document.getElementById('highlighter-palette');
+            const removeHighlightBtn = document.getElementById('remove-highlight-btn');
+
+            // CONTROLLERS & LOGIC
+            const saveData = () => {
+                localStorage.setItem('enemEssaysData', JSON.stringify(state));
+            };
+
+            const loadData = () => {
+                const savedData = localStorage.getItem('enemEssaysData');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    state = { ...initialData, ...parsedData };
+                    // Garante que novos campos sejam adicionados se não existirem nos dados salvos
+                    if (!state.favorites) state.favorites = [];
+                    if (!state.moderatorPass) state.moderatorPass = 'admin123';
+                    if (!state.theme) state.theme = 'system';
+                    if (!state.highlights) state.highlights = {};
+                } else {
+                    state = initialData;
+                    saveData();
+                }
+            };
+            
+            const findCategoryName = (categoryId) => {
+                const category = state.categories.find(c => c.id === categoryId);
+                return category ? category.name : 'Sem Categoria';
+            };
+            
+            const showConfirmationModal = (title, body, onConfirm) => {
+                modalTitleText.textContent = title;
+                modalBodyText.textContent = body;
+                confirmationModal.classList.remove('hidden');
+                deleteCallback = onConfirm;
+            };
+            
+            const hideConfirmationModal = () => {
+                confirmationModal.classList.add('hidden');
+                deleteCallback = null;
+            };
+
+            const renderFilters = () => {
+                const years = [...new Set(state.essays.map(e => e.year))].sort((a, b) => b - a);
+                yearFilter.innerHTML = '<option value="all">Todos os Anos</option>';
+                years.forEach(year => {
+                    const option = document.createElement('option');
+                    option.value = year;
+                    option.textContent = year;
+                    yearFilter.appendChild(option);
+                });
+
+                categoryFilter.innerHTML = '<option value="all">Todas as Seções</option>';
+                newEssayCategorySelect.innerHTML = '<option value="" disabled selected>Selecione uma seção</option>';
+                state.categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category.id;
+                    option.textContent = category.name;
+                    categoryFilter.appendChild(option.cloneNode(true));
+                    newEssayCategorySelect.appendChild(option);
+                });
+            };
+
+            const renderEssaysGrid = () => {
+                let essaysToRender = [...state.essays];
+                
+                const searchTerm = searchInput.value.toLowerCase().trim();
+                const selectedYear = yearFilter.value;
+                const selectedCategory = categoryFilter.value;
+                const sortBy = sortSelect.value;
+                const showFavorites = favoritesToggle.checked;
+
+                if (showFavorites) {
+                    essaysToRender = essaysToRender.filter(e => state.favorites.includes(e.id));
+                }
+                
+                if (selectedYear !== 'all') {
+                    essaysToRender = essaysToRender.filter(e => e.year == selectedYear);
+                }
+                
+                if (selectedCategory !== 'all') {
+                    essaysToRender = essaysToRender.filter(e => e.category === selectedCategory);
+                }
+
+                if (searchTerm) {
+                    essaysToRender = essaysToRender.filter(e => 
+                        e.theme.toLowerCase().includes(searchTerm) || 
+                        e.text.toLowerCase().includes(searchTerm)
+                    );
+                }
+
+                switch (sortBy) {
+                    case 'year-desc':
+                        essaysToRender.sort((a, b) => b.year - a.year);
+                        break;
+                    case 'year-asc':
+                        essaysToRender.sort((a, b) => a.year - b.year);
+                        break;
+                    case 'theme-asc':
+                        essaysToRender.sort((a, b) => a.theme.localeCompare(b.theme));
+                        break;
+                }
+                
+                essaysGrid.innerHTML = '';
+                essaysCount.textContent = `Mostrando ${essaysToRender.length} de ${state.essays.length} redações.`;
+                
+                if (essaysToRender.length === 0) {
+                    essaysGrid.innerHTML = `<p class="col-span-full text-center text-stone-500 dark:text-stone-400">Nenhuma redação encontrada para os filtros selecionados.</p>`;
+                    return;
+                }
+                
+                essaysToRender.forEach(essay => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-white dark:bg-stone-800 rounded-lg shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300 flex flex-col';
+                    const categoryName = findCategoryName(essay.category);
+                    const isFavorited = state.favorites.includes(essay.id);
+                    
+                    card.innerHTML = `
+                        <div class="p-6 flex-grow">
+                             <div class="flex justify-between items-start">
+                                <span class="inline-block bg-amber-100 text-amber-800 dark:bg-amber-800 dark:text-amber-100 text-xs font-semibold mr-2 px-2.5 py-0.5 rounded-full">${categoryName}</span>
+                                <span class="favorite-btn ${isFavorited ? 'favorited' : ''}" data-id="${essay.id}" title="Marcar como favorito">${isFavorited ? '&#9733;' : '&#9734;'}</span>
+                             </div>
+                            <p class="text-sm text-stone-500 dark:text-stone-400 font-semibold mt-2">${essay.year}</p>
+                            <h3 class="mt-1 text-lg font-semibold text-stone-800 dark:text-stone-100 leading-tight">${essay.theme}</h3>
+                            <p class="mt-2 text-stone-600 dark:text-stone-400 text-sm line-clamp-4">${essay.text}</p>
+                        </div>
+                        <div class="p-4 bg-stone-50 dark:bg-stone-800/50">
+                            <button data-id="${essay.id}" class="read-btn w-full bg-amber-500 text-white font-bold py-2 px-4 rounded-md hover:bg-amber-600 transition-colors duration-300">Ler Redação Completa</button>
+                        </div>
+                    `;
+                    essaysGrid.appendChild(card);
+                });
+            };
+            
+            const renderYearChart = () => {
+                if(essaysYearChart) essaysYearChart.destroy();
+                const ctx = document.getElementById('essaysByYearChart').getContext('2d');
+                const isDark = document.documentElement.classList.contains('dark');
+                const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+                const labelColor = isDark ? '#d6d3d1' : '#44403c';
+
+                const essaysByYear = state.essays.reduce((acc, essay) => {
+                    acc[essay.year] = (acc[essay.year] || 0) + 1;
+                    return acc;
+                }, {});
+
+                const sortedYears = Object.keys(essaysByYear).sort((a,b) => a - b);
+                const chartData = sortedYears.map(year => essaysByYear[year]);
+
+                essaysYearChart = new Chart(ctx, {
+                    type: 'bar', data: { labels: sortedYears, datasets: [{ label: 'Nº de Redações', data: chartData, backgroundColor: 'rgba(245, 158, 11, 0.6)', borderColor: 'rgba(217, 119, 6, 1)', borderWidth: 1, borderRadius: 4 }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1, color: labelColor }, grid: { color: gridColor } }, x: { ticks: { color: labelColor }, grid: { color: gridColor } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: (context) => `Ano: ${context[0].label}` } } } }
+                });
+            };
+            
+            const renderCategoryChart = () => {
+                if(essaysCategoryChart) essaysCategoryChart.destroy();
+                const ctx = document.getElementById('essaysByCategoryChart').getContext('2d');
+                const isDark = document.documentElement.classList.contains('dark');
+                const labelColor = isDark ? '#d6d3d1' : '#44403c';
+                
+                const essaysByCategory = state.essays.reduce((acc, essay) => {
+                    const categoryName = findCategoryName(essay.category);
+                    acc[categoryName] = (acc[categoryName] || 0) + 1;
+                    return acc;
+                }, {});
+
+                const labels = Object.keys(essaysByCategory);
+                const data = Object.values(essaysByCategory);
+
+                essaysCategoryChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Redações por Seção',
+                            data: data,
+                            backgroundColor: ['rgba(245, 158, 11, 0.6)', 'rgba(59, 130, 246, 0.6)', 'rgba(22, 163, 74, 0.6)', 'rgba(217, 119, 6, 0.6)', 'rgba(109, 40, 217, 0.6)', 'rgba(220, 38, 38, 0.6)'],
+                            borderColor: ['rgba(217, 119, 6, 1)', 'rgba(37, 99, 235, 1)', 'rgba(21, 128, 61, 1)', 'rgba(202, 138, 4, 1)', 'rgba(91, 33, 182, 1)', 'rgba(185, 28, 28, 1)'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    color: labelColor
+                                }
+                            }
+                        }
+                    }
+                });
+            };
+            
+            const renderCharts = () => {
+                renderYearChart();
+                renderCategoryChart();
+            };
+
+            const showReadingView = (essay) => {
+                currentReadingEssayId = essay.id;
+                dashboardSection.classList.add('hidden');
+                filterSection.classList.add('hidden');
+                gallerySection.classList.add('hidden');
+                readingTitle.textContent = essay.theme;
+                readingYear.textContent = `Ano: ${essay.year} | Seção: ${findCategoryName(essay.category)}`;
+                
+                const savedHtml = state.highlights[essay.id];
+                if (savedHtml) {
+                    readingText.innerHTML = savedHtml;
+                } else {
+                    readingText.innerHTML = essay.text.split('\n\n').map(p => `<p>${p}</p>`).join('');
+                }
+                
+                readingView.classList.remove('hidden');
+                window.scrollTo(0, 0);
+            };
+
+            const hideReadingView = () => {
+                currentReadingEssayId = null;
+                readingView.classList.add('hidden');
+                highlighterPalette.classList.add('hidden');
+                dashboardSection.classList.remove('hidden');
+                filterSection.classList.remove('hidden');
+                gallerySection.classList.remove('hidden');
+            };
+            
+            const handleFilterChange = () => {
+                renderEssaysGrid();
+            };
+            
+            const handleFavoriteClick = (id) => {
+                const essayId = parseInt(id);
+                const index = state.favorites.indexOf(essayId);
+                if (index > -1) {
+                    state.favorites.splice(index, 1);
+                } else {
+                    state.favorites.push(essayId);
+                }
+                saveData();
+                renderEssaysGrid();
+            };
+
+            const showModeratorPanel = () => {
+                moderatorLogin.classList.add('hidden');
+                moderatorPanel.classList.remove('hidden');
+                moderatorModeBtn.classList.add('hidden');
+                renderModeratorLists();
+            };
+
+            const hideModeratorPanel = () => {
+                moderatorLogin.classList.add('hidden');
+                moderatorPanel.classList.add('hidden');
+                moderatorModeBtn.classList.remove('hidden');
+                moderatorPassInput.value = '';
+                loginError.classList.add('hidden');
+            };
+
+            const handleModeratorLogin = (e) => {
+                e.preventDefault();
+                if (moderatorPassInput.value === state.moderatorPass) {
+                    showModeratorPanel();
+                } else {
+                    loginError.classList.remove('hidden');
+                }
+            };
+            
+            const handleChangePassword = (e) => {
+                e.preventDefault();
+                passwordMessage.textContent = '';
+                if (currentPasswordInput.value !== state.moderatorPass) {
+                    passwordMessage.textContent = 'Senha atual incorreta.';
+                    passwordMessage.classList.remove('text-green-600');
+                    passwordMessage.classList.add('text-red-600');
+                    return;
+                }
+                if (!newPasswordInput.value) {
+                    passwordMessage.textContent = 'Nova senha não pode estar em branco.';
+                    passwordMessage.classList.remove('text-green-600');
+                    passwordMessage.classList.add('text-red-600');
+                    return;
+                }
+                state.moderatorPass = newPasswordInput.value;
+                saveData();
+                passwordMessage.textContent = 'Senha alterada com sucesso!';
+                passwordMessage.classList.add('text-green-600');
+                passwordMessage.classList.remove('text-red-600');
+                changePasswordForm.reset();
+            };
+            
+            const renderModeratorLists = () => {
+                // Categories
+                manageCategoriesList.innerHTML = '';
+                state.categories.forEach(cat => {
+                    const el = document.createElement('div');
+                    el.className = 'flex justify-between items-center p-2 bg-stone-50 dark:bg-stone-700 rounded';
+                    el.innerHTML = `
+                        <span class="category-name dark:text-stone-300" data-id="${cat.id}">${cat.name}</span>
+                        <div class="space-x-2">
+                            <button class="rename-cat-btn text-blue-500 hover:text-blue-700" data-id="${cat.id}" title="Renomear">&#9998;</button>
+                            <button class="delete-cat-btn text-red-500 hover:text-red-700" data-id="${cat.id}" title="Excluir">&#128465;</button>
+                        </div>
+                    `;
+                    manageCategoriesList.appendChild(el);
+                });
+                
+                // Essays
+                manageEssaysList.innerHTML = '';
+                state.essays.forEach(essay => {
+                    const el = document.createElement('div');
+                    el.className = 'flex justify-between items-center p-2 bg-stone-50 dark:bg-stone-700 rounded';
+                    el.innerHTML = `
+                        <span class="truncate w-3/4 dark:text-stone-300" title="${essay.theme}">${essay.year} - ${essay.theme}</span>
+                        <div class="space-x-2">
+                            <button class="edit-essay-btn text-blue-500 hover:text-blue-700" data-id="${essay.id}" title="Editar">&#9998;</button>
+                            <button class="delete-essay-btn text-red-500 hover:text-red-700" data-id="${essay.id}" title="Excluir">&#128465;</button>
+                        </div>
+                    `;
+                    manageEssaysList.appendChild(el);
+                });
+            };
+            
+            const handleAddCategory = (e) => {
+                e.preventDefault();
+                const name = newCategoryNameInput.value.trim();
+                if (name) {
+                    const newCategory = {
+                        id: name.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_' + Date.now(),
+                        name: name
+                    };
+                    state.categories.push(newCategory);
+                    saveData();
+                    renderUI();
+                    newCategoryNameInput.value = '';
+                }
+            };
+            
+            const handleRenameCategory = (id) => {
+                const category = state.categories.find(c => c.id === id);
+                const newName = prompt(`Renomear seção "${category.name}":`, category.name);
+                if (newName && newName.trim() !== category.name) {
+                    category.name = newName.trim();
+                    saveData();
+                    renderUI();
+                }
+            };
+            
+            const handleDeleteCategory = (id) => {
+                const category = state.categories.find(c => c.id === id);
+                const essaysInCategory = state.essays.filter(e => e.category === id).length;
+                showConfirmationModal(
+                    'Excluir Seção?',
+                    `Você tem certeza que deseja excluir a seção "${category.name}"? ${essaysInCategory} redações nesta seção ficarão "Sem Categoria".`,
+                    () => {
+                        state.categories = state.categories.filter(c => c.id !== id);
+                        state.essays.forEach(e => {
+                            if (e.category === id) {
+                                e.category = null;
+                            }
+                        });
+                        saveData();
+                        renderUI();
+                        hideConfirmationModal();
+                    }
+                );
+            };
+
+            const handleSaveEssay = (e) => {
+                e.preventDefault();
+                const idToEdit = editingEssayIdInput.value;
+                const essayData = {
+                    year: parseInt(newEssayYearInput.value),
+                    theme: newEssayThemeInput.value.trim(),
+                    category: newEssayCategorySelect.value,
+                    text: newEssayTextInput.value.trim()
+                };
+                
+                if (idToEdit) {
+                    const index = state.essays.findIndex(e => e.id == idToEdit);
+                    if (index > -1) {
+                        state.essays[index] = { ...state.essays[index], ...essayData };
+                    }
+                } else {
+                    essayData.id = Date.now();
+                    state.essays.push(essayData);
+                }
+                
+                saveData();
+                renderUI();
+                resetEssayForm();
+            };
+            
+            const resetEssayForm = () => {
+                addEssayForm.reset();
+                editingEssayIdInput.value = '';
+                essayFormTitle.textContent = 'Adicionar Nova Redação';
+                saveEssayBtn.textContent = 'Adicionar Redação';
+                saveEssayBtn.classList.remove('bg-yellow-600', 'hover:bg-yellow-700');
+                saveEssayBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+                cancelEditBtn.classList.add('hidden');
+            };
+            
+            const populateEssayForm = (id) => {
+                const essay = state.essays.find(e => e.id == id);
+                if (essay) {
+                    editingEssayIdInput.value = essay.id;
+                    newEssayYearInput.value = essay.year;
+                    newEssayThemeInput.value = essay.theme;
+                    newEssayCategorySelect.value = essay.category;
+                    newEssayTextInput.value = essay.text;
+                    
+                    essayFormTitle.textContent = 'Editar Redação';
+                    saveEssayBtn.textContent = 'Salvar Alterações';
+                    saveEssayBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                    saveEssayBtn.classList.add('bg-yellow-600', 'hover:bg-yellow-700');
+                    cancelEditBtn.classList.remove('hidden');
+                    moderatorPanel.scrollIntoView({ behavior: 'smooth' });
+                }
+            };
+            
+            const handleDeleteEssay = (id) => {
+                const essay = state.essays.find(e => e.id == id);
+                showConfirmationModal(
+                    'Excluir Redação?',
+                    `Você tem certeza que deseja excluir a redação "${essay.theme}"?`,
+                    () => {
+                        state.essays = state.essays.filter(e => e.id != id);
+                        state.favorites = state.favorites.filter(favId => favId != id);
+                        // Remover destaques associados
+                        if (state.highlights[id]) {
+                            delete state.highlights[id];
+                        }
+                        saveData();
+                        renderUI();
+                        hideConfirmationModal();
+                    }
+                );
+            };
+
+            const renderUI = () => {
+                renderFilters();
+                renderEssaysGrid();
+                renderCharts();
+                if (!moderatorPanel.classList.contains('hidden')) {
+                    renderModeratorLists();
+                }
+            };
+            
+            // --- Theme Controller ---
+            const updateTheme = (theme) => {
+                const html = document.documentElement;
+                if (theme === 'system') {
+                    themeToggleBtn.innerHTML = '&#9737;'; // System
+                    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                        html.classList.add('dark');
+                    } else {
+                        html.classList.remove('dark');
+                    }
+                } else if (theme === 'dark') {
+                    themeToggleBtn.innerHTML = '&#9790;'; // Moon
+                    html.classList.add('dark');
+                } else {
+                    themeToggleBtn.innerHTML = '&#9728;'; // Sun
+                    html.classList.remove('dark');
+                }
+                state.theme = theme;
+                localStorage.setItem('theme', theme);
+                
+                // Recarregar gráficos para cores do novo tema
+                if (essaysYearChart || essaysCategoryChart) {
+                    renderCharts();
+                }
+            };
+
+            const toggleTheme = () => {
+                if (state.theme === 'system') {
+                    updateTheme('light');
+                } else if (state.theme === 'light') {
+                    updateTheme('dark');
+                } else {
+                    updateTheme('system');
+                }
+            };
+
+            const initTheme = () => {
+                updateTheme(state.theme);
+                window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+                    if (state.theme === 'system') {
+                        updateTheme('system');
+                    }
+                });
+            };
+
+            // --- Highlighter Controller ---
+            const handleTextSelection = (e) => {
+                const selection = window.getSelection();
+                const selectionText = selection.toString().trim();
+
+                if (selectionText !== '' && readingText.contains(selection.anchorNode)) {
+                    const range = selection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+                    const containerRect = readingView.getBoundingClientRect();
+                    
+                    highlighterPalette.style.top = `${rect.top - containerRect.top + readingView.scrollTop - 50}px`;
+                    highlighterPalette.style.left = `${rect.left - containerRect.left + readingView.scrollLeft + (rect.width / 2) - 50}px`;
+                    highlighterPalette.classList.remove('hidden');
+                }
+            };
+            
+            const applyHighlight = (color) => {
+                const selection = window.getSelection();
+                if (!selection.rangeCount) return;
+                
+                const range = selection.getRangeAt(0);
+                const mark = document.createElement('mark');
+                mark.className = `highlight-${color} px-0.5`;
+                
+                try {
+                    mark.appendChild(range.extractContents());
+                    range.insertNode(mark);
+                } catch (e) {
+                    console.error("Erro ao aplicar destaque:", e);
+                    return;
+                }
+                
+                selection.removeAllRanges();
+                saveHighlights();
+            };
+
+            const removeHighlight = () => {
+                const selection = window.getSelection();
+                if (!selection.rangeCount) return;
+
+                let node = selection.getRangeAt(0).commonAncestorContainer;
+                if (node.nodeType !== 1) {
+                    node = node.parentNode;
+                }
+                const mark = node.closest('mark');
+
+                if (mark) {
+                    const parent = mark.parentNode;
+                    while (mark.firstChild) {
+                        parent.insertBefore(mark.firstChild, mark);
+                    }
+                    parent.removeChild(mark);
+                    parent.normalize(); // Junta nós de texto adjacentes
+                    saveHighlights();
+                }
+                selection.removeAllRanges();
+            };
+            
+            const saveHighlights = () => {
+                if (currentReadingEssayId) {
+                    state.highlights[currentReadingEssayId] = readingText.innerHTML;
+                    saveData();
+                }
+            };
+
+            // Event Listeners Setup
+            [searchInput, yearFilter, categoryFilter, sortSelect, favoritesToggle].forEach(el => {
+                el.addEventListener('change', handleFilterChange);
+            });
+            searchInput.addEventListener('input', handleFilterChange);
+            
+            essaysGrid.addEventListener('click', (e) => {
+                if (e.target.classList.contains('read-btn')) {
+                    const essayId = e.target.dataset.id;
+                    const essay = state.essays.find(e => e.id == essayId);
+                    showReadingView(essay);
+                }
+                if (e.target.classList.contains('favorite-btn')) {
+                    const essayId = e.target.dataset.id;
+                    handleFavoriteClick(essayId);
+                }
+            });
+            
+            backToGalleryBtn.addEventListener('click', hideReadingView);
+            
+            moderatorModeBtn.addEventListener('click', () => moderatorLogin.classList.remove('hidden'));
+            moderatorLoginForm.addEventListener('submit', handleModeratorLogin);
+            logoutBtn.addEventListener('click', hideModeratorPanel);
+            changePasswordForm.addEventListener('submit', handleChangePassword);
+            
+            addCategoryForm.addEventListener('submit', handleAddCategory);
+            manageCategoriesList.addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                
+                if (btn.classList.contains('rename-cat-btn')) {
+                    handleRenameCategory(btn.dataset.id);
+                }
+                if (btn.classList.contains('delete-cat-btn')) {
+                    handleDeleteCategory(btn.dataset.id);
+                }
+            });
+            
+            addEssayForm.addEventListener('submit', handleSaveEssay);
+            cancelEditBtn.addEventListener('click', resetEssayForm);
+            manageEssaysList.addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                
+                if (btn.classList.contains('edit-essay-btn')) {
+                    populateEssayForm(btn.dataset.id);
+                }
+                if (btn.classList.contains('delete-essay-btn')) {
+                    handleDeleteEssay(btn.dataset.id);
+                }
+            });
+            
+            confirmDeleteBtn.addEventListener('click', () => {
+                if (deleteCallback) deleteCallback();
+            });
+            cancelDeleteBtn.addEventListener('click', hideConfirmationModal);
+            confirmationModal.addEventListener('click', (e) => {
+                if(e.target === confirmationModal) hideConfirmationModal();
+            });
+            
+            themeToggleBtn.addEventListener('click', toggleTheme);
+            
+            // Highlighter Listeners
+            readingText.addEventListener('mouseup', handleTextSelection);
+            
+            highlighterPalette.addEventListener('mousedown', (e) => {
+                e.preventDefault(); // Impede que a seleção de texto seja perdida
+                const btn = e.target.closest('button');
+                if (!btn) return;
+                
+                if (btn.classList.contains('highlight-btn')) {
+                    applyHighlight(btn.dataset.color);
+                }
+                if (btn.id === 'remove-highlight-btn') {
+                    removeHighlight();
+                }
+                highlighterPalette.classList.add('hidden');
+            });
+            
+            document.addEventListener('mousedown', (e) => {
+                if (!highlighterPalette.contains(e.target) && !readingText.contains(e.target)) {
+                    highlighterPalette.classList.add('hidden');
+                }
+            });
+
+            // Initial Load
+            loadData();
+            initTheme(); // Deve ser chamado antes de renderUI para os gráficos
+            renderUI();
+        });
+    </script>
+</body>
+</html>
+
